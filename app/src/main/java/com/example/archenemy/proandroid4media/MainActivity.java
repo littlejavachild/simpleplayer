@@ -48,7 +48,7 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        PrefUtils.init( getApplicationContext() );
+        PrefUtils.init(getApplicationContext());
 
         setContentView(R.layout.activity_main);
         setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
@@ -64,9 +64,7 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
         getLoaderManager().initLoader(MP3_LOADER, null, MainActivity.this);
         seek.setOnSeekBarChangeListener(this);
 
-        mp = new MediaPlayer();
-        mp.setOnCompletionListener(this);
-        tracker = new MediaPlayerTimeTrackingRunnable(mp,this,handler);
+        initMediaPlayer();
         // You could have done all this in
         if( savedInstanceState != null ){
             restoreUi();
@@ -83,9 +81,7 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
     @Override
     public void onRestart(){
         super.onRestart();
-        mp = new MediaPlayer();
-        mp.setOnCompletionListener(this);
-        tracker = new MediaPlayerTimeTrackingRunnable(mp,this,handler);
+        initMediaPlayer();
         restoreUi();
     }
     //----------------------------------------------------------------------------------------------
@@ -113,6 +109,13 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
         mp.release();
         tracker.cancel();
         handler.removeCallbacks( tracker );
+    }
+    //----------------------------------------------------------------------------------------------
+    private void initMediaPlayer(){
+        mp = new MediaPlayer();
+        mp.setScreenOnWhilePlaying( true );
+        mp.setOnCompletionListener(this);
+        tracker = new MediaPlayerTimeTrackingRunnable(mp,this,handler);
     }
     //----------------------------------------------------------------------------------------------
     private void play( String path, int seekTo ){
