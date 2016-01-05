@@ -13,6 +13,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
@@ -47,6 +48,8 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        PrefUtils.init( getApplicationContext() );
+
         setContentView(R.layout.activity_main);
         setSupportActionBar((Toolbar) findViewById(R.id.toolbar));
 
@@ -58,45 +61,8 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
         play = (ImageButton) findViewById(R.id.play);
         handler = new Handler();
 
-        mp = new MediaPlayer();
-        tracker = new MediaPlayerTimeTrackingRunnable(mp,this,handler);
-
         getLoaderManager().initLoader(MP3_LOADER, null, MainActivity.this);
         seek.setOnSeekBarChangeListener(this);
-        mp.setOnCompletionListener( this );
-
-        if( savedInstanceState != null ){
-            // if the user's player was showing, we must re-show the player
-            if( savedInstanceState.getInt(KEY_MEDIA_PLAYER_VISIBILITY) == View.VISIBLE ){
-                int seekTo = savedInstanceState.getInt( KEY_SEEK_TO );
-                path = savedInstanceState.getString(MediaStore.Audio.AudioColumns.DATA);
-                simplePlayer.setVisibility(View.VISIBLE);
-                title.setText(savedInstanceState.getString(MediaStore.Audio.AudioColumns.TITLE));
-                // if the user's song was playing when they rotated the device
-                if( savedInstanceState.getBoolean(KEY_SHOULD_RESUME) ){
-                    // we should continue from where they left off
-                    play(path, seekTo);
-                    // and show the appropriate button
-                    play.setImageResource( R.drawable.ic_action_playback_pause );
-                    // and start animating the bars
-                    equ.animateBars();
-                }else{
-                    // else the user's song was paused
-                    // so we play the song and pause it immediately
-                    play(path,seekTo);
-                    mp.pause();
-                    // and show the appropriate button
-                    play.setImageResource( R.drawable.ic_action_playback_play );
-                    // and stop animating bars
-                    equ.stopBars();
-                }
-                // in any case, we must set the seekbar to proper values
-                seek.setMax( mp.getDuration() );
-                seek.setProgress( seekTo );
-                // and start tracking the song progress
-                handler.postDelayed( tracker,100 );
-            }
-        }
 
         play.setOnClickListener( new View.OnClickListener(){
             @Override
@@ -106,9 +72,29 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
         });
     }
     //----------------------------------------------------------------------------------------------
+    @Override
+    public void onRestoreInstanceState( Bundle savedInstanceState ){
+        // You could have done all this in
+        mp = new MediaPlayer();
+        tracker = new MediaPlayerTimeTrackingRunnable(mp,this,handler);
+        mp.setOnCompletionListener(this);
+
+        if( savedInstanceState != null ){
+            restoreUi();
+        }
+    }
+    //----------------------------------------------------------------------------------------------
+    @Override
+    public void onRestart(){
+        super.onRestart();
+        mp = new MediaPlayer();
+        tracker = new MediaPlayerTimeTrackingRunnable(mp,this,handler);
+        restoreUi();
+    }
+    //----------------------------------------------------------------------------------------------
     public void onResume(){
         super.onResume();
-        mp = mp == null? new MediaPlayer() : mp;
+        mp = mp == null ? new MediaPlayer() : mp;
         tracker =  tracker == null ? new MediaPlayerTimeTrackingRunnable(mp,this,handler) : tracker;
     }
     //----------------------------------------------------------------------------------------------
@@ -117,11 +103,11 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
         // Save the state only if the user was playing a song
         if( simplePlayer.getVisibility() == View.VISIBLE ){
             boolean shouldResumePlayback = mp.isPlaying();
-            outState.putString(MediaStore.Audio.AudioColumns.DATA, path);
-            outState.putBoolean(KEY_SHOULD_RESUME, shouldResumePlayback);
-            outState.putInt(KEY_MEDIA_PLAYER_VISIBILITY, simplePlayer.getVisibility());
-            outState.putInt(KEY_SEEK_TO, mp.getCurrentPosition());
-            outState.putString( MediaStore.Audio.AudioColumns.TITLE, title.getText().toString() );
+            PrefUtils.putString(MediaStore.Audio.AudioColumns.DATA, path);
+            PrefUtils.putBoolean(KEY_SHOULD_RESUME, shouldResumePlayback);
+            PrefUtils.putInt(KEY_MEDIA_PLAYER_VISIBILITY, simplePlayer.getVisibility());
+            PrefUtils.putInt(KEY_SEEK_TO, mp.getCurrentPosition());
+            PrefUtils.putString(MediaStore.Audio.AudioColumns.TITLE, title.getText().toString());
         }
     }
     //----------------------------------------------------------------------------------------------
@@ -132,7 +118,7 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
         handler.removeCallbacks( tracker );
     }
     //----------------------------------------------------------------------------------------------
-    private void play( String path,int seekTo ){
+    private void play( String path, int seekTo ){
         this.path = path;
         try{
             mp.stop();
@@ -141,8 +127,8 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
             mp.setDataSource(path);
             mp.setAudioStreamType(AudioManager.STREAM_MUSIC); // play sound from main speaker
             mp.prepare();
-            mp.seekTo( seekTo );
             mp.start();
+            mp.seekTo( seekTo );
 
             seek.setMax(mp.getDuration());
         }catch(Exception e){
@@ -159,6 +145,39 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
             mp.start();
             equ.animateBars();
             play.setImageResource( R.drawable.ic_action_playback_pause );
+        }
+    }
+    //----------------------------------------------------------------------------------------------
+    private void restoreUi(){
+        // if the user's player was showing, we must re-show the player
+        if( PrefUtils.getInt(KEY_MEDIA_PLAYER_VISIBILITY,View.GONE) == View.VISIBLE ){
+            int seekTo = PrefUtils.getInt( KEY_SEEK_TO,0 );
+            path = PrefUtils.getString(MediaStore.Audio.AudioColumns.DATA,null);
+            simplePlayer.setVisibility(View.VISIBLE);
+            title.setText(PrefUtils.getString(MediaStore.Audio.AudioColumns.TITLE,null));
+            // if the user's song was playing when they rotated the device
+            if( PrefUtils.getBoolean(KEY_SHOULD_RESUME,false) ){
+                // we should continue from where they left off
+                play(path, seekTo);
+                // and show the appropriate button
+                play.setImageResource( R.drawable.ic_action_playback_pause );
+                // and start animating the bars
+                equ.animateBars();
+            }else{
+                // else the user's song was paused
+                // so we play the song and pause it immediately
+                play(path,seekTo);
+                mp.pause();
+                // and show the appropriate button
+                play.setImageResource( R.drawable.ic_action_playback_play );
+                // and stop animating bars
+                equ.stopBars();
+            }
+            // in any case, we must set the seekbar to proper values
+            seek.setMax( mp.getDuration() );
+            seek.setProgress( seekTo );
+            // and start tracking the song progress
+            handler.postDelayed( tracker,100 );
         }
     }
     //----------------------------------------------------------------------------------------------
