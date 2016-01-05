@@ -64,6 +64,14 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
         getLoaderManager().initLoader(MP3_LOADER, null, MainActivity.this);
         seek.setOnSeekBarChangeListener(this);
 
+        mp = new MediaPlayer();
+        mp.setOnCompletionListener(this);
+        tracker = new MediaPlayerTimeTrackingRunnable(mp,this,handler);
+        // You could have done all this in
+        if( savedInstanceState != null ){
+            restoreUi();
+        }
+
         play.setOnClickListener( new View.OnClickListener(){
             @Override
             public void onClick(View v) {
@@ -73,21 +81,10 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
     }
     //----------------------------------------------------------------------------------------------
     @Override
-    public void onRestoreInstanceState( Bundle savedInstanceState ){
-        // You could have done all this in
-        mp = new MediaPlayer();
-        tracker = new MediaPlayerTimeTrackingRunnable(mp,this,handler);
-        mp.setOnCompletionListener(this);
-
-        if( savedInstanceState != null ){
-            restoreUi();
-        }
-    }
-    //----------------------------------------------------------------------------------------------
-    @Override
     public void onRestart(){
         super.onRestart();
         mp = new MediaPlayer();
+        mp.setOnCompletionListener(this);
         tracker = new MediaPlayerTimeTrackingRunnable(mp,this,handler);
         restoreUi();
     }
@@ -217,7 +214,9 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
     //----------------------------------------------------------------------------------------------
     @Override
     public void currentTime(int time) {
-        if(!isSeeking) seek.setProgress( time );
+        if(!isSeeking){
+            seek.setProgress( time );
+        }
     }
     //----------------------------------------------------------------------------------------------
     @Override
@@ -252,6 +251,7 @@ public class MainActivity extends AppCompatActivity implements LoaderManager.Loa
     public void onCompletion(MediaPlayer mp) {
         equ.stopBars();
         seek.setProgress( 0 );
+        mp.seekTo( 0 );
         play.setImageResource( R.drawable.ic_action_playback_play );
     }
     //----------------------------------------------------------------------------------------------
